@@ -25,3 +25,29 @@ if (!Number.isInteger(port) || port<1 || port>65535) {
    process.exit(1);
 }
 
+function sendText(res, status, message) {
+   res.writeHead(status, {
+     'Content-Type' : 'text/plain; charset=urf-8'
+   });
+   res.end(message);
+}
+
+const server = http.createServer(async(req, res) => {
+   sendText(res, 200, 'Сервер працює');
+});
+
+async function main() {
+   try {
+       await fs.mkdir(cacheDir, {recursive:true});
+
+       server.listen(port, host);
+       await once(server, 'listening');
+
+       console.log(`Сервер працює : http://${host}:${port}`);
+  } catch (err) {
+       console.error('Помилка запуску:', err.message);
+       process.exitCode = 1;
+  }
+}
+
+main();
