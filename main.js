@@ -27,13 +27,98 @@ if (!Number.isInteger(port) || port<1 || port>65535) {
 
 function sendText(res, status, message) {
    res.writeHead(status, {
-     'Content-Type' : 'text/plain; charset=urf-8'
+     'Content-Type' : 'text/plain; charset=utf-8'
    });
    res.end(message);
 }
 
+// Отримання HTTP-код із шляху запиту
+function getCode(url) {
+   const match = /^\/([1-5][0-9]{2})$/.exec(url);
+
+   return match ? match[1] : null;
+}
+
+// Надсилання картинки клієнту
+function sendImage(res, image, source) {
+   res.writeHead(200, {
+     'Content-Type': 'image/jpeg',
+     'X-Cache': source
+   });
+
+   res.end(image);
+}
+
+// Обробка GET-запит
+async function handleGet(res, code, filePath) {
+   let image;
+
+// Спочатку пошук картинки в кеші
+   try {
+        image = await fs.readFile(FilePath);
+
+        return sendImage(res, image, 'HIT');
+
+   } catch (error) {
+      if (error.code !== 'ENOENT') {
+         throw error;
+      }
+   }
+
+// Якщо картинки немає в кеші, треба завантажити її
+   try {
+        const response = await superagent
+               .get(`https://http.cat/${code}`)
+               .buffer(true)
+               .parse(superagent.parse.image)
+               .timeout(10000);
+
+       image = response.body;
+
+       if (!Buffer.isBuffer(image)) {
+          throw new Error('Не отримано двійкові дані');
+       }
+
+       await fs.writeFile(filePath, image);
+
+       return sendImage(res, image, 'MISS');
+
+   } catch (error) {
+       console.error('Помилка GET:', error.message);
+
+       return sendText(res, 404, 'Картинку не знайдено або не вдалося завантажити');
+   }
+}
+
 const server = http.createServer(async(req, res) => {
-   sendText(res, 200, 'Сервер працює');
+   try{
+//GET
+       if (req.method !== 'GET') {
+          return sendText(res, 405, 'Метод не дозволено');
+       }
+
+//Отримання коду з URL
+       const code = getCode(req.url);
+
+       if(!code) {
+         return sendText(res, 404, 'Неправильний шлях');
+       }
+
+// Шлях до картинки в кеші
+       const filePath = path.join(cacheDir, `${code}.jpg`);
+
+//Виконання GET
+       await handleGet(res, code, filePath);
+
+   } catch(error) {
+       console.error('Помилка:', error.message);
+
+       if (!res.headersSent) {
+          sendText(res, 500, 'Внутрішня помилка сервера');
+       } else {
+           res.destroy();
+       }
+   }
 });
 
 async function main() {
