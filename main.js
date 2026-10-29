@@ -66,28 +66,31 @@ async function handleGet(res, code, filePath) {
    }
 
 // Якщо картинки немає в кеші, треба завантаження її
+   let response;
+
    try {
-        const response = await superagent
+       response = await superagent
                .get(`https://http.cat/${code}`)
                .buffer(true)
                .parse(superagent.parse.image)
                .timeout(10000);
 
-       image = response.body;
+   } catch (error) {
+       return sendText(res, 404, 'Картинку не вдалося завантажити');
+   }
 
-       if (!Buffer.isBuffer(image)) {
-          throw new Error('Не отримано двійкові дані');
+// перевірка отриманих даних
+
+  image = response.body;
+
+  if (!Buffer.isBuffer(image) || image.length === 0 || response.type !== 'image/jpeg') {
+          return sendText (res, 404, 'Неправильна відповідь (дані) від http.cat');
        }
 
-       await fs.writeFile(filePath, image);
+  await fs.writeFile(filePath, image);
 
-       return sendImage(res, image, 'MISS');
+  return sendImage(res, image, 'MISS');
 
-   } catch (error) {
-       console.error('Помилка GET:', error.message);
-
-       return sendText(res, 404, 'Картинку не знайдено або не вдалося завантажити');
-   }
 }
 
 // Читання тіла HTTP-запиту
@@ -109,7 +112,6 @@ async function handlePut (req, res, filePath) {
    }
 
    const image = await readBody(req);
-
 
    if (image.length === 0 ) {
       return sendText(res, 400, 'Порожнє тіло запиту');
@@ -139,7 +141,7 @@ async function handleDelete(res, filePath) {
 const server = http.createServer(async(req, res) => {
    try{
        if (!['GET', 'PUT', 'DELETE'].includes(req.method)) {
-          res.setHeader('Allow', 'GET', 'PUT', 'DELETE');
+          res.setHeader('Allow', 'GET, PUT, DELETE');
           return sendText(res, 405, 'Метод не дозволено');
        }
 
