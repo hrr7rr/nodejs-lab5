@@ -1,5 +1,5 @@
 import http from 'node:http';
-import fs from 'node:fs/promise';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { once } from 'node:events';
 import { Command } from 'commander';
@@ -55,7 +55,7 @@ async function handleGet(res, code, filePath) {
 
 // Спочатку пошук картинки в кеші
    try {
-        image = await fs.readFile(FilePath);
+        image = await fs.readFile(filePath);
 
         return sendImage(res, image, 'HIT');
 
@@ -90,10 +90,43 @@ async function handleGet(res, code, filePath) {
    }
 }
 
+// Читання тіла HTTP-запиту
+async function readBody(req) {
+   const chunks = [];
+
+   for await (const chunk of req) {
+      chunks.push(chunk);
+   }
+
+   return Buffer.concat(chunks);
+}
+
+// PUT запит
+async function handlePut (req, res, filePath) {
+
+   if (req.headers['content-type'] !== 'image/jpeg') {
+      return sendText(res, 415, 'Потрібен Content-Type: image/jpeg');
+   }
+
+// Читання дані картинки із запиту
+   const image = await readBody(req);
+
+
+   if (image.length === 0 ) {
+      return sendText(res, 400, 'Порожнє тіло запиту');
+   }
+
+//Зберігання картинки в кеші
+   await fs.writeFile(filePath, image);
+
+   return sendText(res, 201, 'Картинку збережено');
+}
+
+
 const server = http.createServer(async(req, res) => {
    try{
-//GET
-       if (req.method !== 'GET') {
+       if (!['GET', 'PUT'].includes(req.method)) {
+          res.setHeader('Allow', 'GET', 'PUT');
           return sendText(res, 405, 'Метод не дозволено');
        }
 
@@ -103,18 +136,22 @@ const server = http.createServer(async(req, res) => {
        if(!code) {
          return sendText(res, 404, 'Неправильний шлях');
        }
-
-// Шлях до картинки в кеші
+//Формується шлях до картинки в кеші
        const filePath = path.join(cacheDir, `${code}.jpg`);
 
-//Виконання GET
-       await handleGet(res, code, filePath);
+       if(req.method === 'GET') {
+          return await handleGet(res, code, filePath);
+       }
 
-   } catch(error) {
+       if (req.method === 'PUT') {
+          return await handlePut(req, res, filePath);
+       }
+
+   } catch (error) {
        console.error('Помилка:', error.message);
 
-       if (!res.headersSent) {
-          sendText(res, 500, 'Внутрішня помилка сервера');
+       if(!res.headersSent) {
+           sendText(res, 500, 'Внутрішня помилка сервера');
        } else {
            res.destroy();
        }
