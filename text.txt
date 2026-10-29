@@ -1,0 +1,38 @@
+# Перше отримання картинки
+curl -D - -o first.jpg http://127.0.0.1:3000/404
+
+# Повторне отримання картинки
+curl -D - -o second.jpg http://127.0.0.1:3000/404
+
+# Збереження картинки
+curl -X PUT -H "Content-Type: image/jpeg" --data-binary @first.jpg -D - http://127.0.0.1:3000/201
+ 
+#Отримую збережену картинку через GET
+curl -D - -o saved.jpg http://127.0.0.1:3000/201
+
+#Перевіряю неправильний Content-Type
+curl -X PUT -H "Content-Type: text/plain" --data "Hello" -D - http://127.0.0.1:3000/404
+
+#Перевіряю порожній файл
+curl -X PUT -H "Content-Type: image/jpeg" --data-binary "" -D - http://127.0.0.1:3000/203
+
+#Видаляю картинку 
+curl -X DELETE -D - http://127.0.0.1:3000/201
+
+#Пробую видалити ту саму картинку
+curl -X DELETE -D - http://127.0.0.1:3000/201
+
+#Перевіряю GET після DELETE
+curl -sS -D --o after_delete.jpg http://127.0.0.1:3000/201
+
+#Перевіряю невказаний метод
+curl -sS -X POST -D - http://127.0.0.1:3000/404
+
+#Перевіряю неправильний URL
+curl -D - http://127.0.0.1:3000/booket
+
+#Видалення неіснуючої картинки
+curl -X DELETE -D - http://127.0.0.1:3000/599
+
+
+
